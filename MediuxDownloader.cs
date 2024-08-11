@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
@@ -71,11 +73,31 @@ public class MediuxDownloader
             .Content.ReadAsStringAsync().ConfigureAwait(false);
     }
 
+    private ConcurrentDictionary<string, SemaphoreSlim> cacheLock = new();
+    private ConcurrentDictionary<string, JsonNode> cache = new();
+
     public async Task<JsonNode> GetMediuxMetadata(string url)
     {
-        Plugin.Logger.LogInformation("Loading data from {Url}", url);
-        var text = await GetString(url).ConfigureAwait(false);
-        return ExtractJsonNodes(text).First();
+        var semaphore = cacheLock.GetOrAdd(url, ignored => new SemaphoreSlim(1));
+        try
+        {
+            await semaphore.WaitAsync().ConfigureAwait(false);
+            if (cache.TryGetValue(url, out var data))
+            {
+                Plugin.Logger.LogInformation("Loading cached data from {Url}", url);
+                return data;
+            }
+
+            Plugin.Logger.LogInformation("Loading data from {Url}", url);
+            var text = await GetString(url).ConfigureAwait(false);
+            var node = ExtractJsonNodes(text).First();
+            cache[url] = node;
+            return node;
+        }
+        finally
+        {
+            semaphore.Release();
+        }
     }
 
     public async Task<HttpResponseMessage> DownloadFile(string url)

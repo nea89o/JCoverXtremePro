@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Serialization;
+using MediaBrowser.Model.Entities;
 
 namespace Jellyfin.Plugin.JCoverXtremePro;
 
@@ -34,6 +35,20 @@ public class POJO
         public string fileType { get; set; }
         public string title { get; set; }
         public string id { get; set; }
+
+        public ImageType? JellyFinFileType()
+        {
+            switch (fileType)
+            {
+                case "backdrop":
+                    return ImageType.Backdrop;
+                case "poster":
+                    return ImageType.Primary;
+            }
+
+            return null;
+        }
+
 
         [JsonIgnore] public string downloadUrl => "https://api.mediux.pro/assets/" + id;
     }

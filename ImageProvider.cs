@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Text.Json;
@@ -37,58 +38,46 @@ public class ImageProvider
         return new List<ImageType>
         {
             ImageType.Primary,
-            // ImageType.Backdrop,
+            ImageType.Backdrop,
         };
     }
 
     public async Task<IEnumerable<RemoteImageInfo>> GetImages(BaseItem item, CancellationToken cancellationToken)
     {
-        var movie = item as Movie;
         var movieId = item.GetProviderId(MetadataProvider.Tmdb);
-        var collectionId = item.GetProviderId(MetadataProvider.TmdbCollection);
-        _logger.LogInformation(
-            $"Help i am stuck in a movie labeling factory and have been taskted to label {movie.Name} " +
-            $"({movieId} in collection {collectionId})"
-        );
-        var movieData =
+        var movieJson =
             await MediuxDownloader.instance.GetMediuxMetadata("https://mediux.pro/movies/" + movieId)
                 .ConfigureAwait(false);
-        var deserMovieData = JsonSerializer.Deserialize<POJO.MovieData>(movieData as JsonObject);
-        _logger.LogInformation("Movie Data: {JsonData}", movieData.ToJsonString());
-        _logger.LogInformation("Movie Data Decoded: {Data}", JsonSerializer.Serialize(deserMovieData));
+        var movieData = JsonSerializer.Deserialize<POJO.MovieData>(movieJson as JsonObject);
         List<RemoteImageInfo> images = new();
-        foreach (var set in deserMovieData.allSets)
+        foreach (var set in movieData.allSets)
         {
-            _logger.LogInformation("Set Data: {Name} {Data}", set.set_name, set.files.Count);
             foreach (var file in set.files)
             {
-                _logger.LogInformation("Matching file {Name}", JsonSerializer.Serialize(file));
-                if (file.fileType != "poster")
+                var ft = file.JellyFinFileType();
+                if (ft == null)
                 {
-                    _logger.LogInformation("Skipping non poster file");
                     continue;
                 }
 
-                if (file.title.Contains(deserMovieData.movie.title))
+                if (!file.title.Contains(movieData.movie.title, StringComparison.InvariantCulture))
                 {
-                    _logger.LogInformation("Adding image");
-                    var imageInfo = new RemoteImageInfo
-                    {
-                        Url = file.downloadUrl,
-                        ProviderName = Name,
-                        ThumbnailUrl = file.downloadUrl,
-                        Language = "en",
-                        RatingType = RatingType.Likes,
-                        Type = ImageType.Primary,
-                    };
-                    _logger.LogInformation("Constructed image");
-                    images.Add(imageInfo);
-                    _logger.LogInformation("Appended image");
+                    continue;
                 }
+
+                var imageInfo = new RemoteImageInfo
+                {
+                    Url = file.downloadUrl,
+                    ProviderName = set.user_created.username + "(from Mediux)",
+                    ThumbnailUrl = file.downloadUrl,
+                    Language = "en",
+                    RatingType = RatingType.Likes,
+                    Type = ft.Value
+                };
+                images.Add(imageInfo);
             }
         }
 
-        _logger.LogInformation("Collected images {0}", images);
         return images;
     }
 
