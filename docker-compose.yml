@@ -1,0 +1,16 @@
+
+services:
+  jellyfin:
+    image: jellyfin/jellyfin
+    network_mode: host
+    volumes:
+      - ./testenv/config:/config
+      - ./testenv/cache:/cache
+      - ./testenv/media:/media
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./bin/Debug/net8.0/
+          target: /config/plugins/JCoverXtremePro/
+
+

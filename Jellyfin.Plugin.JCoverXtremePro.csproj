@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net6.0</TargetFramework>
+        <TargetFramework>net8.0</TargetFramework>
         <RootNamespace>Jellyfin.Plugin.JCoverXtremePro</RootNamespace>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
@@ -13,6 +13,9 @@
     <ItemGroup>
         <PackageReference Include="Jellyfin.Controller" Version="10.8.13"/>
         <PackageReference Include="Jellyfin.Model" Version="10.8.13"/>
+        <Reference Include="Jellyfin.Api">
+            <HintPath>/usr/lib/jellyfin/Jellyfin.Api.dll</HintPath>
+        </Reference>
     </ItemGroup>
 
     <ItemGroup>
@@ -24,6 +27,7 @@
     <ItemGroup>
         <None Remove="Configuration\configPage.html"/>
         <EmbeddedResource Include="Configuration\configPage.html"/>
+        <EmbeddedResource Include="Api\coverscript.js"/>
     </ItemGroup>
 
 </Project>
