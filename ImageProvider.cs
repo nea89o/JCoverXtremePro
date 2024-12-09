@@ -68,8 +68,8 @@ public class ImageProvider
                 var imageInfo = new RemoteImageInfo
                 {
                     Url = file.downloadUrl,
-                    ProviderName = set.user_created.username + "(from Mediux)",
-                    ThumbnailUrl = file.downloadUrl,
+                    ProviderName = set.user_created.username + " (via Mediux)",
+                    ThumbnailUrl = file.downloadUrl, // TODO: use generated thumbnails from /_next/image?url=
                     Language = "en",
                     RatingType = RatingType.Likes,
                     Type = ft.Value

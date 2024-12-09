@@ -19,9 +19,12 @@
     /**
      *
      * @param {HTMLElement} cloneFrom
+     * @param {string} setMeta
      * @return {HTMLElement}
      */
-    function createDownloadSeriesButton(cloneFrom) {
+    function createDownloadSeriesButton(
+        cloneFrom,
+        setMeta) {
         /*<button is="paper-icon-button-light" class="btnDownloadRemoteImage autoSize paper-icon-button-light" raised"="" title="Download"><span class="material-icons cloud_download" aria-hidden="true"></span></button>*/
         //import LayersIcon from '@mui/icons-material/Layers';
         //import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
@@ -35,10 +38,33 @@
         element.appendChild(icon)
         element.addEventListener("click", ev => {
             ev.preventDefault()
-            
-            alert("YOU HAVE JUST BEEN INTERDICTED BY THE JCOVERXTREMEPRO SERIES DOWNLOADIFICATOR")
+            console.log("Executing mass covering event! We will try to download the entirety of set " + setMeta)
+            fetch("/JCoverXtreme/DownloadSeries",
+                {
+                    method: 'POST',
+                    body: setMeta,
+                    headers: {
+                        "content-type": "application/json"
+                    }
+                }).then(console.log) // TODO: check out the root somehow. for now just assume /
         })
         return element
+    }
+
+    /**
+     * Keep in sync with JCoverSharedController.URL_META_KEY
+     * @type {string}
+     */
+    const URL_META_KEY = "JCoverXtremeProMeta"
+
+    /**
+     * Extract the JCoverXtremePro metadata from an image url.
+     *
+     * @param {string} url
+     * @return {string}
+     */
+    function extractSetMeta(url) {
+        return new URL(url).searchParams.get(URL_META_KEY)
     }
 
     const observer = new MutationObserver(() => {
@@ -51,9 +77,12 @@
 
         buttons.forEach(element => {
             const downloadRowContainer = findParent(element, ".cardText")
+            const cardContainer = findParent(element, ".cardBox")
+            const cardImage = cardContainer.querySelector("a.cardImageContainer[href]")
+            const setMeta = extractSetMeta(cardImage.href)
             if (downloadRowContainer.querySelector(`.${injectionMarker}`)) return
             // TODO: extract information about the series, and check if this is at all viable
-            downloadRowContainer.appendChild(createDownloadSeriesButton(element))
+            downloadRowContainer.appendChild(createDownloadSeriesButton(element, setMeta))
         })
 
     })
