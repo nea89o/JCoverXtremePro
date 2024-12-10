@@ -10,6 +10,7 @@ using System.Web;
 using Jellyfin.Api;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Dto;
+using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Providers;
@@ -68,6 +69,39 @@ public class JCoverSharedController : BaseJellyfinApiController
             }));
     }
 
+    private static Dictionary<(int, int), POJO.File> CreateCoverFileLUT(POJO.Set set)
+    {
+        Dictionary<string, (int, int)> episodeIdToEpisodeNumber = new();
+        foreach (var showSeason in set.show.seasons)
+        {
+            episodeIdToEpisodeNumber[showSeason.id] = (showSeason.season_number, -10);
+            foreach (var showEpisode in showSeason.episodes)
+            {
+                episodeIdToEpisodeNumber[showEpisode.id] = (showSeason.season_number, showEpisode.episode_number);
+            }
+        }
+
+        Dictionary<(int, int), POJO.File> episodeNumberToFile = new();
+        foreach (var file in set.files)
+        {
+            string id = string.Empty;
+            if (file.episode_id != null)
+            {
+                id = file.episode_id.id;
+            }
+
+            if (file.season_id != null)
+            {
+                id = file.season_id.id;
+            }
+
+            var tup = episodeIdToEpisodeNumber.GetValueOrDefault(id);
+            episodeNumberToFile[tup] = file;
+        }
+
+        return episodeNumberToFile;
+    }
+
     [HttpPost("DownloadSeries")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<ActionResult> DownloadEntireSeriesImages(
@@ -80,60 +114,55 @@ public class JCoverSharedController : BaseJellyfinApiController
         var jsonMeta = await MediuxDownloader.instance.GetMediuxMetadata($"https://mediux.pro/sets/{setMetaObj.setId}")
             .ConfigureAwait(false);
         var set = JsonSerializer.Deserialize<POJO.SetData>(jsonMeta).set;
-        Dictionary<string, (int, int)> lut = new();
-        foreach (var showSeason in set.show.seasons)
-        {
-            foreach (var showEpisode in showSeason.episodes)
-            {
-                lut[showEpisode.id] = (showSeason.season_number, showEpisode.episode_number);
-            }
-        }
-
-        Dictionary<(int, int), POJO.File> files = new();
-        foreach (var file in set.files)
-        {
-            var episode = file.episode_id;
-            if (episode == null)
-            {
-                continue;
-            }
-
-            var tup = lut[episode.id];
-            files[tup] = file;
-        }
-
+        var files = CreateCoverFileLUT(set);
         foreach (var item in series.GetSeasons(null, new DtoOptions(true)))
         {
             var season = item as Season;
             var seasonNumber = season.GetLookupInfo().IndexNumber.Value;
             Plugin.Logger.LogInformation($"Season id: {seasonNumber}:");
+            await TryDownloadEpisode(season, files, (seasonNumber, -10))
+                .ConfigureAwait(false);
             foreach (var itemAgain in season.GetEpisodes())
             {
                 var episode = itemAgain as Episode;
                 var episodeNumber = episode.GetLookupInfo().IndexNumber.Value;
                 Plugin.Logger.LogInformation($" * Episode id: {episodeNumber} {episode.Name}");
-                POJO.File file;
-                if (files.TryGetValue((seasonNumber, episodeNumber), out file))
-                {
-                    Plugin.Logger.LogInformation($"   Found cover: {file.downloadUrl}");
-                    //         await _providerManager.SaveImage(item, imageUrl, type, null, CancellationToken.None)
-                    //     .ConfigureAwait(false);
-
-                    // await item.UpdateToRepositoryAsync(ItemUpdateType.ImageUpdate, CancellationToken.None).ConfigureAwait(false);
-                    await _providerManager.SaveImage(
-                        episode, file.downloadUrl,
-                        // Note: this needs to be updated if SeriesImageProvider ever supports more image types
-                        ImageType.Primary,
-                        null,
-                        CancellationToken.None
-                    ).ConfigureAwait(false);
-
-                    await episode.UpdateToRepositoryAsync(ItemUpdateType.ImageUpdate, CancellationToken.None)
-                        .ConfigureAwait(false);
-                }
+                await TryDownloadEpisode(episode, files, (seasonNumber, episodeNumber))
+                    .ConfigureAwait(false);
             }
         }
 
         return Empty;
+    }
+
+    private async Task TryDownloadEpisode(
+        BaseItem item,
+        Dictionary<(int, int), POJO.File> files,
+        (int, int) episodeNumber)
+    {
+        POJO.File file;
+        if (files.TryGetValue(episodeNumber, out file))
+        {
+            Plugin.Logger.LogInformation($"     Found cover: {file.downloadUrl}");
+            await SaveCoverFileForItem(item, file.downloadUrl)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private async Task SaveCoverFileForItem(
+        BaseItem item,
+        string downloadUrl
+    )
+    {
+        await _providerManager.SaveImage(
+            item, downloadUrl,
+            // Note: this needs to be updated if SeriesImageProvider ever supports more image types
+            ImageType.Primary,
+            null,
+            CancellationToken.None
+        ).ConfigureAwait(false);
+
+        await item.UpdateToRepositoryAsync(ItemUpdateType.ImageUpdate, CancellationToken.None)
+            .ConfigureAwait(false);
     }
 }

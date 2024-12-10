@@ -80,8 +80,8 @@
             const cardContainer = findParent(element, ".cardBox")
             const cardImage = cardContainer.querySelector("a.cardImageContainer[href]")
             const setMeta = extractSetMeta(cardImage.href)
+            if (!setMeta) return;
             if (downloadRowContainer.querySelector(`.${injectionMarker}`)) return
-            // TODO: extract information about the series, and check if this is at all viable
             downloadRowContainer.appendChild(createDownloadSeriesButton(element, setMeta))
         })
 
