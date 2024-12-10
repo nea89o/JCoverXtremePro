@@ -3,5 +3,6 @@ obj
 .idea/
 
 testenv
+*.user
 
 
